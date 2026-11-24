@@ -13,6 +13,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint",
+    "test:smoke": "node tests/smoke.mjs",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
