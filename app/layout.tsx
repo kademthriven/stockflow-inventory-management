@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Starter Project",
-  description: "A clean starting point for building your site.",
-  other: {
-    "codex-preview": "development",
+  title: {
+    default: "StockFlow — Inventory, in focus",
+    template: "%s · StockFlow",
   },
+  description:
+    "A calm, secure inventory workspace for growing product businesses.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -15,12 +17,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body>
+        {children}
+        <Toaster position="top-right" richColors closeButton />
+      </body>
     </html>
   );
 }
