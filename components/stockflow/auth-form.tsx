@@ -40,7 +40,7 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <label htmlFor={id} className="flex items-center gap-2 text-sm font-semibold text-[#26312d]">
           <Icon className="size-4 text-[#718079]" aria-hidden="true" />
           {label}
@@ -132,7 +132,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <div className="w-full max-w-[440px] animate-float-in">
+    <div className="min-w-0 w-full max-w-[440px] animate-float-in">
       <div className="mb-9">
         <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#16825d]">
           {isSignup ? "Start your workspace" : "Welcome back"}
@@ -177,7 +177,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           />
         </Field>
 
-        <Field id="password" label="Password" icon={LockKeyhole} hint={isSignup ? "8+ · upper · lower · number" : undefined} error={errors.password}>
+        <Field id="password" label="Password" icon={LockKeyhole} hint={isSignup ? "8+ · A–z · 0–9" : undefined} error={errors.password}>
           <div className="relative">
             <Input
               id="password"

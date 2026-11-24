@@ -45,10 +45,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <p className="relative z-10 text-xs text-[#73817b]">Built for focused product teams.</p>
       </section>
 
-      <section className="flex min-h-screen flex-col">
-        <div className="flex items-center justify-between px-5 py-5 sm:px-8 lg:hidden">
+      <section className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">
+        <div className="flex min-w-0 items-center justify-between gap-3 px-5 py-5 sm:px-8 lg:hidden">
           <BrandMark />
-          <span className="rounded-full bg-[#e4f5ed] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.08em] text-[#0f704f]">Secure workspace</span>
+          <span className="shrink-0 rounded-full bg-[#e4f5ed] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.08em] text-[#0f704f]">Secure workspace</span>
         </div>
         <div className="flex flex-1 items-center justify-center px-5 py-10 sm:px-10 lg:px-16 xl:px-24">
           {children}
