@@ -1,0 +1,29 @@
+{
+  "functions": {
+    "api/index.mjs": {
+      "regions": ["sin1"]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/auth/:path*",
+      "destination": "/api/index?path=auth/:path*"
+    },
+    {
+      "source": "/api/products/:path*",
+      "destination": "/api/index?path=products/:path*"
+    },
+    {
+      "source": "/api/products",
+      "destination": "/api/index?path=products"
+    },
+    {
+      "source": "/api/dashboard",
+      "destination": "/api/index?path=dashboard"
+    },
+    {
+      "source": "/api/settings",
+      "destination": "/api/index?path=settings"
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 
-const baseUrl = (process.argv[2] ?? "http://127.0.0.1:5173").replace(/\/$/, "");
-const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const baseUrl = (process.argv[2] ?? "http://127.0.0.1:3000").replace(/\/$/, "");
+const runId =
+  process.env.STOCKFLOW_TEST_RUN_ID ??
+  `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const password = "Inventory9!";
 
 async function request(path, { cookie, method = "GET", body } = {}) {
@@ -19,7 +21,14 @@ async function request(path, { cookie, method = "GET", body } = {}) {
   const data = contentType.includes("application/json")
     ? await response.json()
     : await response.text();
-  const setCookie = response.headers.getSetCookie?.()[0] ?? response.headers.get("set-cookie");
+  const setCookies =
+    response.headers.getSetCookie?.() ?? [response.headers.get("set-cookie")];
+  const setCookie = setCookies.find(
+    (value) => {
+      if (!value?.startsWith("stockflow_session=")) return false;
+      return value.split(";", 1)[0].split("=", 2)[1]?.length > 0;
+    },
+  );
 
   return {
     response,
@@ -38,7 +47,19 @@ async function signup(email, organizationName) {
   return result.cookie;
 }
 
-const cookieA = await signup(`owner-a-${runId}@example.com`, "Northstar Goods");
+let cookieA = await signup(`owner-a-${runId}@example.com`, "Northstar Goods");
+const signupSessionA = await request("/api/auth/me", { cookie: cookieA });
+assert.equal(signupSessionA.response.status, 200, JSON.stringify(signupSessionA.data));
+const loginA = await request("/api/auth/login", {
+  cookie: cookieA,
+  method: "POST",
+  body: { email: `owner-a-${runId}@example.com`, password },
+});
+assert.equal(loginA.response.status, 200, JSON.stringify(loginA.data));
+assert.ok(loginA.cookie?.startsWith("stockflow_session="));
+cookieA = loginA.cookie;
+const sessionA = await request("/api/auth/me", { cookie: cookieA });
+assert.equal(sessionA.response.status, 200, JSON.stringify(sessionA.data));
 const sku = `FLOW-${runId}`.toUpperCase();
 
 const createdA = await request("/api/products", {
@@ -56,6 +77,11 @@ const createdA = await request("/api/products", {
 });
 assert.equal(createdA.response.status, 201, JSON.stringify(createdA.data));
 const productId = createdA.data.product.id;
+
+const searchA = await request("/api/products?search=canvas", { cookie: cookieA });
+assert.equal(searchA.response.status, 200);
+assert.equal(searchA.data.products.length, 1);
+assert.equal(searchA.data.products[0].id, productId);
 
 const dashboardA = await request("/api/dashboard", { cookie: cookieA });
 assert.equal(dashboardA.response.status, 200);

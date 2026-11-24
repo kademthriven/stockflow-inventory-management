@@ -1,101 +1,65 @@
 # StockFlow
 
-StockFlow is a focused inventory workspace for small sellers. It combines secure organization-scoped accounts, fast product management, low-stock visibility, and a calm operational interface in one deployable full-stack application.
+StockFlow is a multi-tenant inventory MVP for small sellers. Owners can manage products, track stock, and see low-stock items in a responsive dashboard.
 
-## What is included
+## Features
 
-- Email/password signup and login with organization creation
-- PBKDF2 password hashing and hashed, expiring server-side sessions
-- Strict organization scoping for every product query and mutation
-- Product creation, search, editing, and confirmed deletion
-- Name, SKU, description, quantity, cost, selling price, and optional product threshold
-- Organization-wide fallback low-stock threshold
-- Dashboard totals and an actionable low-stock list
-- Responsive desktop, tablet, and mobile layouts
-- Durable Cloudflare D1 storage with versioned Drizzle migrations
-- Accessible loading, empty, error, validation, and confirmation states
+- Email/password signup and login with bcrypt-hashed passwords and server-side sessions
+- Organization-scoped product CRUD, name/SKU search, and per-organization SKU uniqueness
+- Dashboard product and unit totals with low-stock indicators
+- Organization-wide default low-stock threshold, overridable per product
+- Product quantity, cost, selling price, and description
+- Responsive dashboard, products, settings, login, and signup pages
 
 ## Stack
 
-- Next.js App Router on Vinext and Cloudflare Workers
-- React 19, TypeScript, and Tailwind CSS
-- Drizzle ORM with Cloudflare D1
-- Zod validation
-- Radix/shadcn primitives and Lucide icons
+- Next.js App Router, React, TypeScript, and Tailwind CSS
+- Express API, shared by local development and the Vercel API function
+- Sequelize with SQLite for local development and PostgreSQL for Neon
+- Neon PostgreSQL for persistent production data
 
-## Local setup
+## Local development
 
-Prerequisites: Node.js 22.13 or newer, Git, and tar.
-
-```bash
-npm run install:ci
-npm run db:generate
-npm run build
-```
-
-Apply the generated migration to the local D1 database. Replace the migration filename if a newer migration exists:
+Prerequisites: Node.js 22.13 or newer.
 
 ```bash
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_large_maddog.sql
-```
-
-Start the development server:
-
-```bash
+npm install
 npm run dev
 ```
 
-The terminal prints the local URL (normally `http://localhost:5173`). Create an account from the signup screen; no database seeding or manual database edits are required.
+By default, local development uses `data/stockflow.sqlite`. To use Neon locally, set `DATABASE_URL` in the ignored `.env.local` file; use the pooled URL for application traffic. Copy `.env.example` for optional local settings.
 
-## Quality checks
+## Validation
 
 ```bash
-npm run typecheck
-npm run lint
 npm run check
 npm run build
+npm test
 ```
 
-With the local server running, exercise authentication, CRUD, dashboard totals, settings, SKU rules, and cross-tenant isolation:
-
-```bash
-npm run test:smoke -- http://127.0.0.1:5173
-```
-
-## Security model
-
-- Passwords are never stored directly. Each password is hashed with a unique random salt using PBKDF2-HMAC-SHA-256.
-- Session tokens are returned only through `HttpOnly`, `SameSite=Lax` cookies; only their SHA-256 digests are persisted.
-- Authentication is resolved server-side for every protected request.
-- Organization IDs are derived from the authenticated session, never trusted from request payloads.
-- Product reads, writes, aggregates, SKU uniqueness, settings, and deletes are scoped to that organization.
-- Invalid credentials use a generic response and expired sessions are rejected.
+`npm test` starts the app, exercises signup/login, product search and CRUD, dashboard totals, settings, logout, and tenant isolation, then removes its temporary records.
 
 ## Data model
 
 - `organizations`: tenant identity and default low-stock threshold
-- `users`: one owner account per MVP organization
-- `sessions`: hashed opaque sessions with expiration timestamps
-- `products`: tenant-owned inventory records; `(organization_id, sku)` is unique
+- `users`: one owner account per organization
+- `sessions`: hashed opaque session tokens with expiration timestamps
+- `products`: tenant-owned inventory; `(organization_id, sku)` is unique
 
-Prices are stored as integer cents to avoid floating-point rounding errors. A product is low stock when its quantity is less than or equal to its product threshold, or the organization default when no product override is set.
-
-## Project structure
-
-```text
-app/                    Routes, pages, and API handlers
-components/stockflow/   Product-specific interface components
-db/                     Drizzle database access and schema
-drizzle/                Generated, versioned SQL migrations
-lib/                    Authentication, validation, and inventory logic
-.openai/hosting.json    Deployment and D1 binding configuration
-worker/                 Cloudflare Worker entry point
-```
-
-## Assessment scope
-
-This build intentionally excludes variants, categories, warehouses, supplier and purchase-order flows, channel integrations, imports, billing, role management, audit logs, and complex analytics. Those features are outside the six-hour MVP brief.
+Prices are stored as integer cents. A product is low stock when its quantity is at or below its own threshold, or the organization's default when no product threshold is set.
 
 ## Deployment
 
-The repository contains the tracked hosting manifest and generated database migration required for deployment. Hosted migrations are applied before the Worker is published.
+The project is configured for Vercel. Next.js serves the UI, and `api/index.mjs` hosts the Express API as a Vercel Function. API paths are routed to that function by `vercel.json`.
+
+Set `DATABASE_URL` in the Vercel Production environment to the Neon pooled connection string, then deploy with:
+
+```bash
+vercel --prod
+```
+
+The API initializes its Sequelize schema on its first request. Do not commit `.env.local` or production database credentials.
+
+## Assessment scope
+
+This MVP intentionally excludes multi-warehouse support, variants, categories, supplier and purchase-order flows, channel integrations, imports, billing, role management, audit logs, and advanced analytics.

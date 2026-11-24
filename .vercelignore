@@ -1,0 +1,11 @@
+.agents/
+.sites-runtime/
+.vinext/
+.wrangler/
+/data/
+dist/
+outputs/
+work/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

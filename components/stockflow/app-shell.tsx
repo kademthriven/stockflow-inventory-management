@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   LayoutDashboard,
+  LoaderCircle,
   Menu,
   PackageSearch,
   Power,
+  RefreshCcw,
   Settings2,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/stockflow/brand-mark";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -35,29 +39,212 @@ function initials(value: string) {
     .join("") || "SF";
 }
 
-export function AppShell({
-  children,
-  organizationName = "Your workspace",
-  email = "Account owner",
+type SessionUser = {
+  id: string;
+  email: string;
+  organizationId: string;
+  organizationName: string;
+  defaultLowStockThreshold: number;
+};
+
+type SessionPayload = {
+  user?: Partial<SessionUser> & {
+    organization?: {
+      id?: string;
+      name?: string;
+      defaultLowStockThreshold?: number;
+    };
+  };
+  error?: string;
+};
+
+function normalizeSessionUser(payload: SessionPayload): SessionUser | null {
+  const user = payload.user;
+  const organizationId = user?.organizationId ?? user?.organization?.id;
+  const organizationName = user?.organizationName ?? user?.organization?.name;
+  const defaultLowStockThreshold =
+    user?.defaultLowStockThreshold ??
+    user?.organization?.defaultLowStockThreshold ??
+    5;
+
+  if (
+    !user?.id ||
+    !user.email ||
+    !organizationId ||
+    !organizationName ||
+    !Number.isInteger(defaultLowStockThreshold)
+  ) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    organizationId,
+    organizationName,
+    defaultLowStockThreshold,
+  };
+}
+
+function WorkspaceGate({
+  state,
+  message,
+  onRetry,
 }: {
-  children: React.ReactNode;
-  organizationName?: string;
-  email?: string;
+  state: "loading" | "redirecting" | "error";
+  message?: string;
+  onRetry?: () => void;
 }) {
+  const waiting = state !== "error";
+
+  return (
+    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#f6f8f5] px-5 py-12">
+      <div className="surface-grid absolute inset-0 opacity-45" aria-hidden="true" />
+      <div className="absolute left-1/2 top-[-180px] size-[420px] -translate-x-1/2 rounded-full bg-[#45c895]/10 blur-3xl" aria-hidden="true" />
+
+      <section
+        className="relative w-full max-w-md rounded-3xl border border-[#dce3de] bg-white/95 px-6 py-8 text-center shadow-[0_24px_70px_rgb(23_32_29/10%)] backdrop-blur sm:px-9 sm:py-10"
+        aria-live="polite"
+        aria-busy={waiting}
+      >
+        <BrandMark className="justify-center" />
+
+        <span
+          className={cn(
+            "mx-auto mt-8 grid size-14 place-items-center rounded-2xl",
+            waiting
+              ? "bg-[#e4f5ed] text-[#16825d]"
+              : "bg-[#fff0ec] text-[#bd453b]",
+          )}
+        >
+          {waiting ? (
+            <LoaderCircle className="size-7 animate-spin" aria-hidden="true" />
+          ) : (
+            <AlertTriangle className="size-7" aria-hidden="true" />
+          )}
+        </span>
+
+        <h1 className="mt-5 text-2xl font-semibold tracking-[-0.035em] text-[#17201d]">
+          {state === "error"
+            ? "We couldn't open your workspace"
+            : state === "redirecting"
+              ? "Taking you to sign in"
+              : "Checking your workspace"}
+        </h1>
+        <p
+          className="mx-auto mt-2 max-w-sm text-base leading-7 text-[#66716d]"
+          role={state === "error" ? "alert" : "status"}
+        >
+          {message ??
+            (state === "redirecting"
+              ? "Your session has ended. You'll be redirected securely."
+              : "Confirming your session before showing inventory data.")}
+        </p>
+
+        {state === "error" && onRetry && (
+          <Button
+            type="button"
+            onClick={onRetry}
+            className="mt-6 h-11 rounded-xl bg-[#16825d] px-5 font-semibold hover:bg-[#0f704f]"
+          >
+            <RefreshCcw className="size-4" /> Try again
+          </Button>
+        )}
+      </section>
+    </main>
+  );
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [sessionState, setSessionState] = useState<
+    "loading" | "redirecting" | "ready" | "error"
+  >("loading");
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
+  const [sessionError, setSessionError] = useState("");
+  const requestSequence = useRef(0);
+
+  const loadSession = useCallback(async () => {
+    const requestId = ++requestSequence.current;
+    setSessionState("loading");
+    setSessionError("");
+
+    try {
+      const response = await fetch("/api/auth/me", {
+        cache: "no-store",
+        credentials: "include",
+      });
+
+      if (requestId !== requestSequence.current) return;
+
+      if (response.status === 401) {
+        setSessionState("redirecting");
+        router.replace("/login");
+        router.refresh();
+        return;
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as SessionPayload;
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Your workspace session is unavailable.");
+      }
+
+      const user = normalizeSessionUser(payload);
+      if (!user) {
+        throw new Error("The server returned an invalid workspace session.");
+      }
+
+      setSessionUser(user);
+      setSessionState("ready");
+    } catch (reason) {
+      if (requestId !== requestSequence.current) return;
+      setSessionError(
+        reason instanceof Error
+          ? reason.message
+          : "StockFlow is temporarily unreachable. Please try again.",
+      );
+      setSessionState("error");
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const task = window.setTimeout(() => void loadSession(), 0);
+    return () => {
+      window.clearTimeout(task);
+      requestSequence.current += 1;
+    };
+  }, [loadSession]);
 
   async function logout() {
     setLoggingOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
     } finally {
+      setSessionState("redirecting");
+      setSessionUser(null);
       router.replace("/login");
       router.refresh();
     }
   }
+
+  if (sessionState !== "ready" || !sessionUser) {
+    return (
+      <WorkspaceGate
+        state={sessionState === "ready" ? "error" : sessionState}
+        message={sessionError || undefined}
+        onRetry={sessionState === "error" ? () => void loadSession() : undefined}
+      />
+    );
+  }
+
+  const organizationName = sessionUser.organizationName;
+  const email = sessionUser.email;
 
   const sidebar = (
     <div className="flex h-full flex-col">

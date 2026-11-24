@@ -28,10 +28,17 @@ yarn-error.log*
 
 # Local environment and keys
 .env*
+!.env.example
 .dev.vars*
 *.pem
 
-# Checkout-local tool state
+# Local SQLite databases
+/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Legacy local tool state (never commit generated artifacts)
 /.wrangler/
 /.sites-runtime/
 
@@ -43,3 +50,7 @@ yarn-error.log*
 
 # OS metadata
 .DS_Store
+.neon
+
+.vercel
+.env*
